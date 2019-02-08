@@ -28,7 +28,7 @@ public class SamlProtocolTest {
     @Test
     public void testAuthenticatedNotAuthorized(){
         mh.setPolicy(mh.getUserPolicy());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.FORBIDDEN.getStatusCode(), r.getStatus());
     }
@@ -37,7 +37,7 @@ public class SamlProtocolTest {
     public void testAuthenticatedAuthorized(){
         mh.setPolicy(mh.getUserPolicy());
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.FOUND.getStatusCode(), r.getStatus());
     }
@@ -47,7 +47,7 @@ public class SamlProtocolTest {
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
         mh.setPolicy(mh.getGroupPolicy());
         mh.enableSamlGroupMapper();
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.FORBIDDEN.getStatusCode(), r.getStatus());
     }
@@ -58,7 +58,7 @@ public class SamlProtocolTest {
         mh.enableSamlGroupMapper();
         mh.setGroup();
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.FOUND.getStatusCode(), r.getStatus());
     }
@@ -69,7 +69,7 @@ public class SamlProtocolTest {
         mh.enableSamlGroupMapper();
         mh.setGroupSingleMember();
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.FOUND.getStatusCode(), r.getStatus());
     }

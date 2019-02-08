@@ -5,6 +5,7 @@ import org.keycloak.authorization.AuthorizationProvider;
 import org.keycloak.authorization.model.Policy;
 import org.keycloak.authorization.model.Resource;
 import org.keycloak.authorization.model.ResourceServer;
+import org.keycloak.authorization.policy.evaluation.DefaultPolicyEvaluator;
 import org.keycloak.authorization.policy.provider.PolicyProviderFactory;
 import org.keycloak.authorization.policy.provider.group.GroupPolicyProviderFactory;
 import org.keycloak.authorization.policy.provider.user.UserPolicyProviderFactory;
@@ -14,12 +15,18 @@ import org.keycloak.authorization.store.ResourceStore;
 import org.keycloak.authorization.store.StoreFactory;
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.common.util.CertificateUtils;
+import org.keycloak.crypto.Algorithm;
+import org.keycloak.crypto.KeyUse;
+import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.forms.login.LoginFormsProvider;
 import org.keycloak.models.*;
 import org.keycloak.protocol.ProtocolMapper;
+import org.keycloak.protocol.saml.SamlProtocol;
 import org.keycloak.representations.idm.authorization.DecisionStrategy;
 import org.keycloak.representations.idm.authorization.Logic;
 import org.keycloak.representations.idm.authorization.PolicyEnforcementMode;
+import org.keycloak.services.util.DefaultClientSessionContext;
+import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.util.JsonSerialization;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -114,6 +121,8 @@ public class MockHelper {
     private UserSessionModel userSession;
     @Mock
     private AuthenticatedClientSessionModel clientSession;
+    @Mock
+    private AuthenticationSessionModel sessionModel;
 
     //Other mocks
     @Mock
@@ -135,9 +144,9 @@ public class MockHelper {
 
         initGroup();
         initRealm();
+        initRole();
         initClient();
         initUser();
-        initRole();
 
         initStoreFactory();
         initResourceServerStore();
@@ -147,6 +156,7 @@ public class MockHelper {
         initPolicyStore();
         initPolicy();
 
+        initSessionModel();
         initUserSession();
         initClientSession();
         initSession();
@@ -186,6 +196,8 @@ public class MockHelper {
         when(client.getId()).thenReturn(UUID.randomUUID().toString()) ;
         when(client.getClientId()).thenReturn(getClientId());
         when(client.isEnabled()).thenReturn(true);
+        when(client.getRealm()).thenReturn(realm);
+        when(client.getRoles()).thenReturn(Collections.singleton(role));
     }
     private String getClientId(){return "urn:test:example";}
 
@@ -277,7 +289,7 @@ public class MockHelper {
         when(resource.getId()).thenReturn(UUID.randomUUID().toString());
         when(resource.getName()).thenReturn("Keycloak Client Resource");
         when(resource.getOwner()).thenReturn(getClientId());
-        when(resource.getUri()).thenReturn("");
+        when(resource.getUris()).thenReturn(new HashSet<>());
         when(resource.getScopes()).thenReturn(Collections.emptyList());
         when(resource.getType()).thenReturn("urn:" + getClientId() + ":default");
         when(resource.getResourceServer()).thenReturn(resourceServer);
@@ -329,7 +341,10 @@ public class MockHelper {
         when(session.getProvider(StoreFactory.class)).thenReturn(storeFactory);
         KeycloakContext context = Mockito.mock(KeycloakContext.class);
         when (session.getContext()).thenReturn(context);
-        when(context.getUri()).thenReturn(uriInfo);
+
+        KeycloakUriInfo keycloakUriInfo = Mockito.mock(KeycloakUriInfo.class);
+        when(context.getUri()).thenReturn(keycloakUriInfo);
+
         LoginFormsProvider loginFormsProvider = Mockito.mock(LoginFormsProvider.class);
         when(loginFormsProvider.setAuthenticationSession(any())).thenReturn(loginFormsProvider);
         when(loginFormsProvider.setError(anyString(), any())).thenReturn(loginFormsProvider);
@@ -340,7 +355,7 @@ public class MockHelper {
         Map<String, PolicyProviderFactory> polFactoMap = new HashMap<>();
         polFactoMap.put("user", new UserPolicyProviderFactory());
         polFactoMap.put("group", new GroupPolicyProviderFactory());
-        AuthorizationProvider authorizationProvider = new AuthorizationProvider(session, realm, polFactoMap);
+        AuthorizationProvider authorizationProvider = new AuthorizationProvider(session, realm, polFactoMap, new DefaultPolicyEvaluator());
         when(session.getProvider(AuthorizationProvider.class)).thenReturn(authorizationProvider);
         when(session.getKeycloakSessionFactory()).thenReturn(sessionFactory);
     }
@@ -376,8 +391,6 @@ public class MockHelper {
         when(clientSession.getClient()).thenReturn(client);
         when(clientSession.getRedirectUri()).thenReturn(getClientId());
         when(clientSession.getNote("SSO_AUTH")).thenReturn("true");
-        String roleId = role.getId();
-        when(clientSession.getRoles()).thenReturn(Collections.singleton(roleId));
         when(clientSession.getUserSession()).thenReturn(userSession);
         when(clientSession.getRealm()).thenReturn(realm);
     }
@@ -386,12 +399,48 @@ public class MockHelper {
         return clientSession;
     }
 
+    /**
+     * Initialises the session model
+     */
+    private void initSessionModel() {
+        when(sessionModel.getClientNote(SamlProtocol.SAML_BINDING)).thenReturn("post");
+        when(sessionModel.getRedirectUri()).thenReturn(getClientId());
+        when(sessionModel.getAuthenticatedUser()).thenReturn(user);
+        when(sessionModel.getClient()).thenReturn(client);
+        when(sessionModel.getTabId()).thenReturn(getClientId());
+        when(sessionModel.getRealm()).thenReturn(realm);
+//        when(sessionModel.getClientNote(SamlProtocol.SAML_IDP_INITIATED_LOGIN)).thenReturn("true");
+//        when(sessionModel.getClientNote(GeneralConstants.RELAY_STATE)).thenReturn("");
+//        when(sessionModel.getClientNote(GeneralConstants.NAMEID_FORMAT)).thenReturn(null);
+//        when(sessionModel.getClientNote(SamlProtocol.SAML_REQUEST_ID)).thenReturn("");
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.RESPONSE_TYPE_PARAM)).thenReturn(OIDCResponseType.CODE);
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.RESPONSE_MODE_PARAM)).thenReturn(null);
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.STATE_PARAM)).thenReturn(null);
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.NONCE_PARAM)).thenReturn("");
+//        when(sessionModel.getClientNote(OAuth2Constants.SCOPE)).thenReturn(OAuth2Constants.SCOPE_OPENID);
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.REDIRECT_URI_PARAM)).thenReturn(UUID.randomUUID().toString());
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.CODE_CHALLENGE_PARAM)).thenReturn("");
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.CODE_CHALLENGE_METHOD_PARAM)).thenReturn("");
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.PROMPT_PARAM)).thenReturn(null);
+//        when(sessionModel.getClientNote(OIDCLoginProtocol.MAX_AGE_PARAM)).thenReturn(null);
+//        when(sessionModel.getClientNote(DockerAuthV2Protocol.ISSUER)).thenReturn("");
+//        when(sessionModel.getParentSession()).thenReturn(null);
+    }
+
+    public AuthenticationSessionModel getSessionModel() {
+        return sessionModel;
+    }
+
+    public ClientSessionContext getClientSessionContext() {
+        return DefaultClientSessionContext.fromClientSessionScopeParameter(clientSession);
+    }
+
     public void enableOidcGroupMapper(){
         oidcGroupMapper = org.keycloak.protocol.oidc.mappers.GroupMembershipMapper.create("oidcGroupMapper", "member", false, "", true,true);
         oidcGroupMapper.setId(oidcGroupMapper.getName());
         when(sessionFactory.getProviderFactory(ProtocolMapper.class, oidcGroupMapper.getProtocolMapper())).thenReturn(new org.keycloak.protocol.oidc.mappers.GroupMembershipMapper());
         when(client.getProtocolMapperById(oidcGroupMapper.getId())).thenReturn(oidcGroupMapper);
-        when(clientSession.getProtocolMappers()).thenReturn(Collections.singleton(oidcGroupMapper.getName()));
+        when(client.getProtocolMappers()).thenReturn(Collections.singleton(oidcGroupMapper));
     }
 
     public void enableWsfedGroupMapper(){
@@ -399,7 +448,7 @@ public class MockHelper {
         wsfedGroupMapper.setId(wsfedGroupMapper.getName());
         when(sessionFactory.getProviderFactory(ProtocolMapper.class, wsfedGroupMapper.getProtocolMapper())).thenReturn(new SAMLGroupMembershipMapper());
         when(client.getProtocolMapperById(wsfedGroupMapper.getId())).thenReturn(wsfedGroupMapper);
-        when(clientSession.getProtocolMappers()).thenReturn(Collections.singleton(wsfedGroupMapper.getName()));
+        when(client.getProtocolMappers()).thenReturn(Collections.singleton(wsfedGroupMapper));
     }
 
     public void enableSamlGroupMapper(){
@@ -407,7 +456,7 @@ public class MockHelper {
         samlGroupMapper.setId(samlGroupMapper.getName());
         when(sessionFactory.getProviderFactory(ProtocolMapper.class, samlGroupMapper.getProtocolMapper())).thenReturn(new org.keycloak.protocol.saml.mappers.GroupMembershipMapper());
         when(client.getProtocolMapperById(samlGroupMapper.getId())).thenReturn(samlGroupMapper);
-        when(clientSession.getProtocolMappers()).thenReturn(Collections.singleton(samlGroupMapper.getName()));
+        when(client.getProtocolMappers()).thenReturn(Collections.singleton(samlGroupMapper));
     }
 
     /**
@@ -465,5 +514,13 @@ public class MockHelper {
         when(keyManager.getActiveHmacKey(realm)).thenReturn(activeHmacKey);
         when(keyManager.getActiveRsaKey(realm)).thenReturn(activeRsaKey);
         when(keyManager.getActiveAesKey(realm)).thenReturn(activeAesKey);
+
+        KeyWrapper keyWrapper = new KeyWrapper();
+        keyWrapper.setKid(UUID.randomUUID().toString());
+        keyWrapper.setSignKey(keyPair.getPrivate());
+        keyWrapper.setVerifyKey(keyPair.getPublic());
+        keyWrapper.setCertificate(certificate);
+        keyWrapper.setAlgorithm(Algorithm.RS256);
+        when(keyManager.getActiveKey(realm, KeyUse.SIG, Algorithm.RS256)).thenReturn(keyWrapper);
     }
 }

@@ -21,18 +21,22 @@ import com.quest.keycloak.protocol.wsfed.mappers.OIDCUserPropertyMapper;
 import com.quest.keycloak.protocol.wsfed.mappers.SAMLRoleListMapper;
 import com.quest.keycloak.protocol.wsfed.mappers.SAMLUserPropertyAttributeStatementMapper;
 import org.keycloak.events.EventBuilder;
-import org.keycloak.models.*;
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.ProtocolMapperModel;
+import org.keycloak.models.RealmModel;
 import org.keycloak.protocol.AbstractLoginProtocolFactory;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.oidc.mappers.AddressMapper;
 import org.keycloak.protocol.saml.mappers.AttributeStatementHelper;
 import org.keycloak.representations.idm.ClientRepresentation;
-import org.keycloak.representations.idm.ClientTemplateRepresentation;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.processing.core.saml.v2.constants.X500SAMLProfileConstants;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created on 5/19/15.
@@ -53,8 +57,13 @@ public class WSFedLoginProtocolFactory extends AbstractLoginProtocolFactory {
     public static final String FAMILY_NAME_CONSENT_TEXT = "${familyName}";
     public static final String FULL_NAME_CONSENT_TEXT = "${fullName}";
 
-    static List<ProtocolMapperModel> builtins = new ArrayList<>();
+    static Map<String, ProtocolMapperModel> builtins = new HashMap<>();
     static List<ProtocolMapperModel> defaultBuiltins = new ArrayList<>();
+
+    @Override
+    public Map<String, ProtocolMapperModel> getBuiltinMappers() {
+        return builtins;
+    }
 
     @Override
     public Object createProtocolEndpoint(RealmModel realm, EventBuilder event) {
@@ -63,11 +72,6 @@ public class WSFedLoginProtocolFactory extends AbstractLoginProtocolFactory {
 
     @Override
     public void setupClientDefaults(ClientRepresentation rep, ClientModel newClient) {
-
-    }
-
-    @Override
-    public void setupTemplateDefaults(ClientTemplateRepresentation clientRep, ClientTemplateModel newClient) {
 
     }
 
@@ -81,16 +85,6 @@ public class WSFedLoginProtocolFactory extends AbstractLoginProtocolFactory {
         return "wsfed";
     }
 
-    @Override
-    public List<ProtocolMapperModel> getBuiltinMappers() {
-        return builtins;
-    }
-
-    @Override
-    public List<ProtocolMapperModel> getDefaultBuiltinMappers() {
-        return defaultBuiltins;
-    }
-
     static {
         ProtocolMapperModel model;
 
@@ -100,43 +94,43 @@ public class WSFedLoginProtocolFactory extends AbstractLoginProtocolFactory {
                 "upn", "String",
                 true, UPN_CONSENT_TEXT,
                 true, true);
-        builtins.add(model);
+        builtins.put(UPN, model);
         model = OIDCUserPropertyMapper.createClaimMapper(USERNAME,
                 "username",
                 "preferred_username", "String",
                 true, USERNAME_CONSENT_TEXT,
                 true, true);
-        builtins.add(model);
+        builtins.put(USERNAME, model);
         model = OIDCUserPropertyMapper.createClaimMapper(EMAIL,
                 "email",
                 "email", "String",
                 true, EMAIL_CONSENT_TEXT,
                 true, true);
-        builtins.add(model);
+        builtins.put(EMAIL, model);
         model = OIDCUserPropertyMapper.createClaimMapper(GIVEN_NAME,
                 "firstName",
                 "given_name", "String",
                 true, GIVEN_NAME_CONSENT_TEXT,
                 true, true);
-        builtins.add(model);
+        builtins.put(GIVEN_NAME, model);
         model = OIDCUserPropertyMapper.createClaimMapper(FAMILY_NAME,
                 "lastName",
                 "family_name", "String",
                 true, FAMILY_NAME_CONSENT_TEXT,
                 true, true);
-        builtins.add(model);
+        builtins.put(FAMILY_NAME, model);
         model = OIDCUserPropertyMapper.createClaimMapper(EMAIL_VERIFIED,
                 "emailVerified",
                 "email_verified", "boolean",
                 false, EMAIL_VERIFIED_CONSENT_TEXT,
                 true, true);
-        builtins.add(model);
+        builtins.put(EMAIL_VERIFIED, model);
 
-        model = OIDCFullNameMapper.create(FULL_NAME, true, FULL_NAME_CONSENT_TEXT, true, true);
-        builtins.add(model);
+        model = OIDCFullNameMapper.create(FULL_NAME, true, true, true);
+        builtins.put(FULL_NAME, model);
 
         ProtocolMapperModel address = AddressMapper.createAddressMapper();
-        builtins.add(address);
+        builtins.put("address", model);
 
         //SAML
         model = SAMLUserPropertyAttributeStatementMapper.createAttributeMapper("X500 email",
@@ -145,29 +139,33 @@ public class WSFedLoginProtocolFactory extends AbstractLoginProtocolFactory {
                 JBossSAMLURIConstants.ATTRIBUTE_FORMAT_URI.get(),
                 X500SAMLProfileConstants.EMAIL.getFriendlyName(),
                 true, "${email}");
-        builtins.add(model);
+        builtins.put("X500 email", model);
         model = SAMLUserPropertyAttributeStatementMapper.createAttributeMapper("X500 givenName",
                 "firstName",
                 X500SAMLProfileConstants.GIVEN_NAME.get(),
                 JBossSAMLURIConstants.ATTRIBUTE_FORMAT_URI.get(),
                 X500SAMLProfileConstants.GIVEN_NAME.getFriendlyName(),
                 true, "${givenName}");
-        builtins.add(model);
+        builtins.put("X500 givenName", model);
         model = SAMLUserPropertyAttributeStatementMapper.createAttributeMapper("X500 surname",
                 "lastName",
                 X500SAMLProfileConstants.SURNAME.get(),
                 JBossSAMLURIConstants.ATTRIBUTE_FORMAT_URI.get(),
                 X500SAMLProfileConstants.SURNAME.getFriendlyName(),
                 true, "${familyName}");
-        builtins.add(model);
+        builtins.put("X500 surname", model);
         model = SAMLRoleListMapper.create("saml role list", "Role", AttributeStatementHelper.BASIC, null, false);
-        builtins.add(model);
+        builtins.put("saml role list", model);
+
+    }
+
+    @Override
+    protected void createDefaultClientScopesImpl(RealmModel newRealm) {
 
     }
 
     @Override
     protected void addDefaults(ClientModel client) {
-//        for (ProtocolMapperModel model : defaultBuiltins) client.addProtocolMapper(model);
-        //!!! IMPORTANT: here we don't add the defaultBuiltins as this is handled by the default OIDCLoginProtocolFactory which is also instanciated but not used as the factory
+        for (ProtocolMapperModel model : defaultBuiltins) client.addProtocolMapper(model);
     }
 }

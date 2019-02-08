@@ -3,6 +3,7 @@ package com.quest.keycloak.protocol.wsfed;
 import io.cloudtrust.keycloak.test.MockHelper;
 import org.junit.Before;
 import org.junit.Test;
+import org.keycloak.models.ClientSessionContext;
 
 import javax.ws.rs.core.Response;
 import java.io.IOException;
@@ -30,7 +31,7 @@ public class WSFedLoginProtocolTest {
     @Test
     public void testAuthenticatedNotAuthorized(){
         mh.setPolicy(mh.getUserPolicy());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.FORBIDDEN.getStatusCode(), r.getStatus());
     }
@@ -39,7 +40,7 @@ public class WSFedLoginProtocolTest {
     public void testAuthenticatedAuthorized(){
         mh.setPolicy(mh.getUserPolicy());
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.OK.getStatusCode(), r.getStatus());
     }
@@ -49,7 +50,7 @@ public class WSFedLoginProtocolTest {
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
         mh.setPolicy(mh.getGroupPolicy());
         mh.enableWsfedGroupMapper();
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.FORBIDDEN.getStatusCode(), r.getStatus());
     }
@@ -60,7 +61,7 @@ public class WSFedLoginProtocolTest {
         mh.setGroup();
         mh.enableWsfedGroupMapper();
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.OK.getStatusCode(), r.getStatus());
     }
@@ -71,7 +72,7 @@ public class WSFedLoginProtocolTest {
         mh.setGroupSingleMember();
         mh.enableWsfedGroupMapper();
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.OK.getStatusCode(), r.getStatus());
     }
@@ -84,7 +85,7 @@ public class WSFedLoginProtocolTest {
         when(mh.getClient().getAttribute(WSFedLoginProtocol.WSFED_SAML_ASSERTION_TOKEN_FORMAT))
                 .thenReturn(WsFedSAMLAssertionTokenFormat.SAML11_ASSERTION_TOKEN_FORMAT.get());
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
-        Response r = protocol.authenticated(mh.getUserSession(),mh.getClientSession());
+        Response r = protocol.authenticated(mh.getSessionModel(), mh.getUserSession(), mh.getClientSessionContext());
         assertNotNull(r);
         assertEquals(Response.Status.OK.getStatusCode(), r.getStatus());
     }

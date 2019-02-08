@@ -188,7 +188,7 @@ public class OIDCLoginProtocolService {
     @Produces(MediaType.APPLICATION_JSON)
     @NoCache
     public Response certs() {
-        List<RsaKeyMetadata> publicKeys = session.keys().getRsaKeys(realm, false);
+        List<RsaKeyMetadata> publicKeys = session.keys().getRsaKeys(realm);
         JWK[] keys = new JWK[publicKeys.size()];
 
         int i = 0;

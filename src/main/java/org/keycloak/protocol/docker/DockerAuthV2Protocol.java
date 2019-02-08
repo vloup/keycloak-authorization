@@ -8,6 +8,7 @@ import org.keycloak.events.EventType;
 import org.keycloak.jose.jws.JWSBuilder;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.KeyManager;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
@@ -16,6 +17,7 @@ import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.ProtocolMapper;
+import org.keycloak.protocol.ProtocolMapperUtils;
 import org.keycloak.protocol.docker.mapper.DockerAuthV2AttributeMapper;
 import org.keycloak.representations.docker.DockerResponse;
 import org.keycloak.representations.docker.DockerResponseToken;
@@ -30,6 +32,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Map;
 import java.util.Set;
 
 public class DockerAuthV2Protocol implements LoginProtocol {
@@ -90,13 +93,15 @@ public class DockerAuthV2Protocol implements LoginProtocol {
     }
 
     @Override
-    public Response authenticated(final UserSessionModel userSession, final AuthenticatedClientSessionModel clientSession) {
+    public Response authenticated(final AuthenticationSessionModel authSession, final UserSessionModel userSession, final ClientSessionContext clientSessionCtx) {
         // First, create a base response token with realm + user values populated
+        final AuthenticatedClientSessionModel clientSession = clientSessionCtx.getClientSession();
         final ClientModel client = clientSession.getClient();
+
         DockerResponseToken responseToken = new DockerResponseToken()
                 .id(KeycloakModelUtils.generateId())
                 .type(TokenUtil.TOKEN_TYPE_BEARER)
-                .issuer(clientSession.getNote(DockerAuthV2Protocol.ISSUER))
+                .issuer(authSession.getClientNote(DockerAuthV2Protocol.ISSUER))
                 .subject(userSession.getUser().getUsername())
                 .issuedNow()
                 .audience(client.getClientId())
@@ -109,9 +114,10 @@ public class DockerAuthV2Protocol implements LoginProtocol {
 
         // Next, allow mappers to decorate the token to add/remove scopes as appropriate
         final ClientSessionCode<AuthenticatedClientSessionModel> accessCode = new ClientSessionCode<>(session, realm, clientSession);
-        final Set<ProtocolMapperModel> mappings = accessCode.getRequestedProtocolMappers();
-        for (final ProtocolMapperModel mapping : mappings) {
-            final ProtocolMapper mapper = (ProtocolMapper) session.getKeycloakSessionFactory().getProviderFactory(ProtocolMapper.class, mapping.getProtocolMapper());
+        for (Map.Entry<ProtocolMapperModel, ProtocolMapper> entry : ProtocolMapperUtils.getSortedProtocolMappers(session, clientSessionCtx)) {
+            ProtocolMapperModel mapping = entry.getKey();
+            ProtocolMapper mapper = entry.getValue();
+
             if (mapper instanceof DockerAuthV2AttributeMapper) {
                 final DockerAuthV2AttributeMapper dockerAttributeMapper = (DockerAuthV2AttributeMapper) mapper;
                 if (dockerAttributeMapper.appliesTo(responseToken)) {
@@ -122,7 +128,7 @@ public class DockerAuthV2Protocol implements LoginProtocol {
 
         /*Authorization block*/
         LocalAuthorizationService authorize = new LocalAuthorizationService(session, realm);
-        Response authResponse = authorize.isAuthorizedResponse(client, userSession, clientSession, accessCode, null);
+        Response authResponse = authorize.isAuthorizedResponse(client, userSession, clientSessionCtx, accessCode, null);
         if (authResponse != null) {
             return authResponse;
         }
@@ -163,6 +169,7 @@ public class DockerAuthV2Protocol implements LoginProtocol {
     @Override
     public void backchannelLogout(final UserSessionModel userSession, final AuthenticatedClientSessionModel clientSession) {
         errorResponse(userSession, "backchannelLogout");
+
     }
 
     @Override

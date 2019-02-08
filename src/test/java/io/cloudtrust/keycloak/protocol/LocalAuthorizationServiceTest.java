@@ -32,7 +32,7 @@ public class LocalAuthorizationServiceTest {
     public void testIsAuthorizedNoResourceServer() {
         when(mh.getResourceServerStore().findById(any())).thenReturn(null);
         LocalAuthorizationService las = new LocalAuthorizationService(mh.getSession(), mh.getRealm());
-        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSession(), accessCode, null);
+        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSessionContext(), accessCode, null);
         assertNull(r);
     }
 
@@ -40,7 +40,7 @@ public class LocalAuthorizationServiceTest {
     public void testIsAuthorizedUserNotOk() {
         mh.setPolicy(mh.getUserPolicy());
         LocalAuthorizationService las = new LocalAuthorizationService(mh.getSession(), mh.getRealm());
-        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSession(), accessCode, null);
+        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSessionContext(), accessCode, null);
         assertNotNull(r);
         assertEquals(Response.Status.FORBIDDEN.getStatusCode(), r.getStatus());
     }
@@ -50,7 +50,7 @@ public class LocalAuthorizationServiceTest {
         when(mh.getUser().getId()).thenReturn(UUID.randomUUID().toString());
         mh.setPolicy(mh.getUserPolicy());
         LocalAuthorizationService las = new LocalAuthorizationService(mh.getSession(), mh.getRealm());
-        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSession(), accessCode, null);
+        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSessionContext(), accessCode, null);
         assertNull(r);
     }
 
@@ -59,7 +59,7 @@ public class LocalAuthorizationServiceTest {
         mh.setPolicy(mh.getGroupPolicy());
         mh.enableOidcGroupMapper();
         LocalAuthorizationService las = new LocalAuthorizationService(mh.getSession(), mh.getRealm());
-        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSession(), accessCode, null);
+        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSessionContext(), accessCode, null);
         assertNotNull(r);
         assertEquals(Response.Status.FORBIDDEN.getStatusCode(), r.getStatus());
     }
@@ -70,7 +70,7 @@ public class LocalAuthorizationServiceTest {
         mh.enableOidcGroupMapper();
         mh.setGroup();
         LocalAuthorizationService las = new LocalAuthorizationService(mh.getSession(), mh.getRealm());
-        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSession(), accessCode, null);
+        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSessionContext(), accessCode, null);
         assertNull(r);
     }
 
@@ -79,7 +79,7 @@ public class LocalAuthorizationServiceTest {
         mh.setPolicy(mh.getUserPolicy());
         when(mh.getUserPolicy().getType()).thenReturn("js");
         LocalAuthorizationService las = new LocalAuthorizationService(mh.getSession(), mh.getRealm());
-        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSession(), accessCode, null);
+        Response r = las.isAuthorizedResponse(mh.getClient(), mh.getUserSession(), mh.getClientSessionContext(), accessCode, null);
         assertNotNull(r);
         assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), r.getStatus());
     }

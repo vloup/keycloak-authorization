@@ -3,7 +3,8 @@ package io.cloudtrust.keycloak.protocol;
 import org.jboss.logging.Logger;
 
 import org.keycloak.authorization.AuthorizationProvider;
-import org.keycloak.authorization.common.KeycloakEvaluationContext;
+import org.keycloak.authorization.authorization.AuthorizationTokenService;
+import org.keycloak.authorization.common.DefaultEvaluationContext;
 import org.keycloak.authorization.common.KeycloakIdentity;
 import org.keycloak.authorization.model.Resource;
 import org.keycloak.authorization.model.ResourceServer;
@@ -67,12 +68,12 @@ public final class LocalAuthorizationService {
      *
      * @param client The client to which access is currently being requested
      * @param userSession The session of the user which is asking for access to the client's resources
-     * @param clientSession The client session currently being used
+     * @param clientSessionCtx The client session context currently being used
      * @param accessCode The client session code TODO figure out what this actually is
      * @param samlAssertion A SAML assertion. This should only be given for protocols that use SAML tokens. For the others, it should be set to null
      * @return {@code true} if the user is not authorised to access the client, false otherwise
      */
-    public boolean isAuthorized(ClientModel client, UserSessionModel userSession, AuthenticatedClientSessionModel clientSession,
+    public boolean isAuthorized(ClientModel client, UserSessionModel userSession, ClientSessionContext clientSessionCtx,
                                 ClientSessionCode<AuthenticatedClientSessionModel> accessCode, CommonAssertionType samlAssertion) {
         AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
         StoreFactory storeFactory = authorization.getStoreFactory();
@@ -82,17 +83,18 @@ public final class LocalAuthorizationService {
             return true; //permissions not enabled
         }
         TokenManager tokenManager = new TokenManager();
-        AccessToken accessToken = tokenManager.createClientAccessToken(session, accessCode.getRequestedRoles(), realm, client, user, userSession, clientSession);
+        AccessToken accessToken = tokenManager.createClientAccessToken(session, realm, client, user, userSession, clientSessionCtx);
         accessToken.getOtherClaims().putAll(getClaims(samlAssertion));
         KeycloakIdentity identity = new KeycloakIdentity(accessToken, session, realm);
 
         Resource resource=storeFactory.getResourceStore().findByName("Keycloak Client Resource", resourceServer.getId());
         List<ResourcePermission> permissions = Collections.singletonList(new ResourcePermission(resource, new ArrayList<>(), resourceServer));
 
-        List<Result> result = authorization.evaluators().from(permissions, new KeycloakEvaluationContext(identity, authorization.getKeycloakSession())).evaluate();
-        List<Permission> entitlements = Permissions.permits(result, null, authorization, resourceServer);
+        Collection<Permission> result = authorization.evaluators().from(permissions,
+                new DefaultEvaluationContext(identity, session))
+                .evaluate(resourceServer, null);
 
-        return !entitlements.isEmpty();
+        return !result.isEmpty();
     }
 
     /**
@@ -140,17 +142,17 @@ public final class LocalAuthorizationService {
      *
      * @param client The client to which access is currently being requested
      * @param userSession The session of the user which is asking for access to the client's resources
-     * @param clientSession The client session currently being used
+     * @param clientSessionCtx The client session context currently being used
      * @param accessCode The client session code TODO figure out what this actually is
      * @param samlAssertion A SAML assertion. This should only be given for protocols that use SAML tokens. For the others, it should be set to null
      * @return A 403 FORBIDDEN error page if the user is not authorised to access the client, and null otherwise
      */
     public Response isAuthorizedResponse(ClientModel client, UserSessionModel userSession,
-                                         AuthenticatedClientSessionModel clientSession,
+                                         ClientSessionContext clientSessionCtx,
                                          ClientSessionCode<AuthenticatedClientSessionModel> accessCode,
                                          CommonAssertionType samlAssertion) {
         try {
-            boolean authorized=isAuthorized(client, userSession, clientSession, accessCode, samlAssertion);
+            boolean authorized=isAuthorized(client, userSession, clientSessionCtx, accessCode, samlAssertion);
             if(authorized){
                 return null;
             }else{
