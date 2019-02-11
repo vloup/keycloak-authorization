@@ -2,6 +2,8 @@ package io.cloudtrust.keycloak.test;
 
 import com.quest.keycloak.protocol.wsfed.mappers.SAMLGroupMembershipMapper;
 import org.keycloak.authorization.AuthorizationProvider;
+import org.keycloak.authorization.jpa.entities.PolicyEntity;
+import org.keycloak.authorization.jpa.store.JPAPolicyStore;
 import org.keycloak.authorization.model.Policy;
 import org.keycloak.authorization.model.Resource;
 import org.keycloak.authorization.model.ResourceServer;
@@ -9,7 +11,6 @@ import org.keycloak.authorization.policy.evaluation.DefaultPolicyEvaluator;
 import org.keycloak.authorization.policy.provider.PolicyProviderFactory;
 import org.keycloak.authorization.policy.provider.group.GroupPolicyProviderFactory;
 import org.keycloak.authorization.policy.provider.user.UserPolicyProviderFactory;
-import org.keycloak.authorization.store.PolicyStore;
 import org.keycloak.authorization.store.ResourceServerStore;
 import org.keycloak.authorization.store.ResourceStore;
 import org.keycloak.authorization.store.StoreFactory;
@@ -36,6 +37,8 @@ import org.mockito.stubbing.Answer;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
@@ -48,8 +51,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.util.*;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
@@ -104,8 +106,6 @@ public class MockHelper {
     @Mock
     private Resource resource;
     @Mock
-    private PolicyStore policyStore;
-    @Mock
     private Policy parentPolicy;
     @Mock
     private Policy userPolicy;
@@ -134,6 +134,9 @@ public class MockHelper {
     private ProtocolMapperModel samlGroupMapper;
     private ProtocolMapperModel wsfedGroupMapper;
 
+    private JPAPolicyStore policyStore;
+    private AuthorizationProvider authorizationProvider;
+
     /**
      * Initialises the mocks, must be called at least once in the test classes using this class. Can also be called
      * to reset the state of modified mocks.
@@ -148,18 +151,18 @@ public class MockHelper {
         initClient();
         initUser();
 
-        initStoreFactory();
         initResourceServerStore();
         initResourceServer();
         initResourceStore();
         initResource();
-        initPolicyStore();
         initPolicy();
 
         initSessionModel();
         initUserSession();
         initClientSession();
         initSession();
+        initPolicyStore();
+        initStoreFactory();
 
         initUriInfo();
         initKeyManager();
@@ -298,9 +301,21 @@ public class MockHelper {
     /**
      * Initialises a PolicyStore
      */
-    private void initPolicyStore(){
-        when(policyStore.findByResource(resource.getId(), resourceServer.getId())).thenReturn(Collections.singletonList(parentPolicy));
-        when(policyStore.findByResourceType(resource.getType(), resourceServer.getId())).thenReturn(Collections.singletonList(parentPolicy));
+    private void initPolicyStore() throws IOException{
+        //when(policyStore.findByResource(resource.getId(), resourceServer.getId())).thenReturn(Collections.singletonList(parentPolicy));
+        //when(policyStore.findByResourceType(resource.getType(), resourceServer.getId())).thenReturn(Collections.singletonList(parentPolicy));
+        EntityManager em = Mockito.mock(EntityManager.class);
+
+        TypedQuery<PolicyEntity> tqp = (TypedQuery<PolicyEntity>)Mockito.mock(TypedQuery.class);
+        when(em.createNamedQuery(eq("findPolicyIdByResource"), eq(PolicyEntity.class))).thenReturn(tqp);
+
+        PolicyEntity pe = Mockito.mock(PolicyEntity.class);
+        when(pe.getType()).thenReturn("user");
+        when(pe.getConfig()).thenReturn(Collections.singletonMap("users", JsonSerialization.writeValueAsString(Collections.singleton(getUserId()))));
+
+        when(tqp.getResultList()).thenReturn(Collections.singletonList(pe));
+
+        policyStore = new JPAPolicyStore(em, authorizationProvider);
     }
 
     /**
@@ -355,9 +370,13 @@ public class MockHelper {
         Map<String, PolicyProviderFactory> polFactoMap = new HashMap<>();
         polFactoMap.put("user", new UserPolicyProviderFactory());
         polFactoMap.put("group", new GroupPolicyProviderFactory());
-        AuthorizationProvider authorizationProvider = new AuthorizationProvider(session, realm, polFactoMap, new DefaultPolicyEvaluator());
+        authorizationProvider = new AuthorizationProvider(session, realm, polFactoMap, new DefaultPolicyEvaluator());
         when(session.getProvider(AuthorizationProvider.class)).thenReturn(authorizationProvider);
         when(session.getKeycloakSessionFactory()).thenReturn(sessionFactory);
+
+        UserSessionProvider usp = Mockito.mock(UserSessionProvider.class);
+        when(usp.getUserSession(eq(realm), anyString())).thenReturn(userSession);
+        when(session.sessions()).thenReturn(usp);
     }
 
     public KeycloakSession getSession() {
@@ -409,22 +428,6 @@ public class MockHelper {
         when(sessionModel.getClient()).thenReturn(client);
         when(sessionModel.getTabId()).thenReturn(getClientId());
         when(sessionModel.getRealm()).thenReturn(realm);
-//        when(sessionModel.getClientNote(SamlProtocol.SAML_IDP_INITIATED_LOGIN)).thenReturn("true");
-//        when(sessionModel.getClientNote(GeneralConstants.RELAY_STATE)).thenReturn("");
-//        when(sessionModel.getClientNote(GeneralConstants.NAMEID_FORMAT)).thenReturn(null);
-//        when(sessionModel.getClientNote(SamlProtocol.SAML_REQUEST_ID)).thenReturn("");
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.RESPONSE_TYPE_PARAM)).thenReturn(OIDCResponseType.CODE);
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.RESPONSE_MODE_PARAM)).thenReturn(null);
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.STATE_PARAM)).thenReturn(null);
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.NONCE_PARAM)).thenReturn("");
-//        when(sessionModel.getClientNote(OAuth2Constants.SCOPE)).thenReturn(OAuth2Constants.SCOPE_OPENID);
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.REDIRECT_URI_PARAM)).thenReturn(UUID.randomUUID().toString());
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.CODE_CHALLENGE_PARAM)).thenReturn("");
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.CODE_CHALLENGE_METHOD_PARAM)).thenReturn("");
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.PROMPT_PARAM)).thenReturn(null);
-//        when(sessionModel.getClientNote(OIDCLoginProtocol.MAX_AGE_PARAM)).thenReturn(null);
-//        when(sessionModel.getClientNote(DockerAuthV2Protocol.ISSUER)).thenReturn("");
-//        when(sessionModel.getParentSession()).thenReturn(null);
     }
 
     public AuthenticationSessionModel getSessionModel() {
